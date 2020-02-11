@@ -1,5 +1,5 @@
 module.exports = {
-  mode: "production",
+  mode: "development",
 
   // Enable sourcemaps for debugging webpack's output.
   devtool: "source-map",
@@ -35,6 +35,7 @@ module.exports = {
   // dependencies, which allows browsers to cache those libraries between builds.
   externals: {
     react: "React",
-    "react-dom": "ReactDOM"
+    "react-dom": "ReactDOM",
+    d3: "d3"
   }
 };
