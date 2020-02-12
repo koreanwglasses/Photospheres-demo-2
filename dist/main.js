@@ -4985,7 +4985,8 @@ class Photospheres extends React.Component {
         utils_1.validate(cluster_1.ClusterNode, props.data);
     }
     render() {
-        // const { data } = this.props;
+        const { data } = this.props;
+        console.log(data);
         return React.createElement("div", null, "nothing to see here yet :)");
     }
 }
@@ -5026,13 +5027,25 @@ exports.validate = validate;
 
 "use strict";
 
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const React = __webpack_require__(/*! react */ "react");
 const ReactDOM = __webpack_require__(/*! react-dom */ "react-dom");
 const photospheres_1 = __webpack_require__(/*! ./components/photospheres */ "./src/components/photospheres.tsx");
 const root = document.getElementById("react-root");
-// @ts-ignore
-ReactDOM.render(React.createElement(photospheres_1.Photospheres, { data: { size: "string" } }), root);
+(() => __awaiter(void 0, void 0, void 0, function* () {
+    const response = yield fetch("example-data/cluster-data.json");
+    const data = yield response.json();
+    ReactDOM.render(React.createElement(photospheres_1.Photospheres, { data: data }), root);
+}))();
 
 
 /***/ }),

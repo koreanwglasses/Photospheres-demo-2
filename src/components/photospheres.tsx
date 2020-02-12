@@ -13,7 +13,8 @@ export class Photospheres extends React.Component<PhotospheresProps> {
   }
 
   render() {
-    // const { data } = this.props;
+    const { data } = this.props;
+    console.log(data);
     return <div>nothing to see here yet :)</div>;
   }
 }
