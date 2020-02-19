@@ -4,6 +4,11 @@ import * as d3 from "d3";
 import { ClusterNode } from "../types/cluster";
 import { validate } from "../utils";
 import { HierarchyCircularNode } from "d3";
+import {
+  colorMappings,
+  palettes,
+  createColorMapping
+} from "../photospheres-color-schemes";
 
 const PADDING = 3;
 
@@ -12,8 +17,6 @@ const clamp = (x: number, min: number, max: number): number =>
 
 type Color = d3.Color | string;
 const luminance = (color: Color): number => d3.lab(color.toString()).l;
-const colorEq = (a: Color, b: Color): boolean =>
-  d3.color(a.toString()).toString() == d3.color(b.toString()).toString();
 
 type Node = HierarchyCircularNode<ClusterNode>;
 type NodeSelection = d3.Selection<
@@ -23,15 +26,14 @@ type NodeSelection = d3.Selection<
   ClusterNode
 >;
 
-interface PhotospheresProps {
+export interface PhotospheresProps {
   data: ClusterNode;
   width: number;
   height: number;
   minRadius?: number;
   strokeOnly?: boolean;
 
-  palette?: (x: number) => Color | Color[] | string;
-  colorMapping?: string;
+  colorMapping?: (d: Node, props?: PhotospheresProps) => Color;
 }
 
 export class Photospheres extends React.Component<PhotospheresProps> {
@@ -40,18 +42,14 @@ export class Photospheres extends React.Component<PhotospheresProps> {
     width: PropTypes.number.isRequired,
     height: PropTypes.number.isRequired,
     minRadius: PropTypes.number,
-    strokeOnly: PropTypes.bool,
-
-    palette: PropTypes.oneOfType([PropTypes.array, PropTypes.string]),
-    colorMap: PropTypes.string
+    strokeOnly: PropTypes.bool
   };
 
   static defaultProps = {
     minRadius: 10,
     strokeOnly: false,
 
-    palette: "ylgnbu",
-    colorMapping: "qualitative"
+    colorMapping: createColorMapping(palettes.ylgnbu, colorMappings.sequential)
   };
 
   private svgRef = React.createRef<SVGSVGElement>();
@@ -68,64 +66,6 @@ export class Photospheres extends React.Component<PhotospheresProps> {
   private preview = React.createRef<HTMLDivElement>();
   private previewName = React.createRef<HTMLSpanElement>();
   private previewImg = React.createRef<HTMLImageElement>();
-
-  private nodeColor: (d: Node) => Color;
-
-  private whichChildMemo: { [key: string]: number } = {};
-  private whichChild(d: Node): number {
-    return this.whichChildMemo[d.data.name]
-      ? this.whichChildMemo[d.data.name]
-      : (this.whichChildMemo[d.data.name] = d.parent.children.indexOf(d));
-  }
-
-  private colorMapping(
-    type: string,
-    color: (x: number) => Color
-  ): (d: Node) => Color {
-    const { strokeOnly } = this.props;
-
-    if ("sequential".startsWith(type)) {
-      // Sequential
-      return (d: Node): Color =>
-        d.children ? color(d.depth) : strokeOnly ? "black" : "white";
-    } else if ("qualitative".startsWith(type)) {
-      // Qualitative
-      const nodeColorMemo: { [key: string]: Color } = {};
-      const nodeColor = (d: Node): Color => {
-        if (!d.parent) return "white";
-        if (!(d.data.name in nodeColorMemo)) {
-          let i = this.whichChild(d);
-
-          for (let j = 0; j < 3; j++) {
-            if (
-              this.whichChild(d) > 0 &&
-              colorEq(
-                color(i),
-                nodeColor(d.parent.children[this.whichChild(d) - 1])
-              )
-            )
-              i++; // dont repeat colors twice in a row
-
-            if (colorEq(color(i), nodeColor(d.parent))) i++; // make sure color is not same as parent
-          }
-
-          nodeColorMemo[d.data.name] = color(i);
-        }
-        return nodeColorMemo[d.data.name];
-      };
-      return nodeColor;
-    } else if ("adaptive".startsWith(type)) {
-      // All leaves are the same color
-      return (d: Node): Color => {
-        const depthRatio = d.depth / (d.depth + d.height);
-        return color(depthRatio);
-      };
-    } else if ("constant".startsWith(type)) {
-      return (d: Node): Color => color(0);
-    } else {
-      throw new Error("invalid color scheme type");
-    }
-  }
 
   // create the circle packing layout
   private pack(data: ClusterNode): Node {
@@ -220,7 +160,9 @@ export class Photospheres extends React.Component<PhotospheresProps> {
   }
 
   private textColor(d: Node): string {
-    return luminance(this.nodeColor(d)) > 70 ? "black" : "white";
+    return luminance(this.props.colorMapping(d, this.props)) > 70
+      ? "black"
+      : "white";
   }
 
   private showPreview(d: Node): void {
@@ -228,7 +170,9 @@ export class Photospheres extends React.Component<PhotospheresProps> {
       this.previewImg.current.setAttribute("src", d.data.preview);
       this.previewName.current.textContent = d.data.name;
       this.preview.current.removeAttribute("hidden");
-      this.preview.current.style.backgroundColor = this.nodeColor(d).toString();
+      this.preview.current.style.backgroundColor = this.props
+        .colorMapping(d, this.props)
+        .toString();
       this.preview.current.style.color = this.textColor(d);
     }
   }
@@ -238,7 +182,7 @@ export class Photospheres extends React.Component<PhotospheresProps> {
   }
 
   private chart(data: ClusterNode): void {
-    const { width, height, strokeOnly } = this.props;
+    const { width, height, strokeOnly, colorMapping } = this.props;
     const root = this.pack(data);
 
     this.focus = root;
@@ -250,7 +194,7 @@ export class Photospheres extends React.Component<PhotospheresProps> {
       .style("display", "block")
       .style(
         "background",
-        strokeOnly ? "white" : this.nodeColor(root).toString()
+        strokeOnly ? "white" : colorMapping(root, this.props).toString()
       )
       .style("cursor", "pointer")
       .on("click", () => this.zoom(root));
@@ -263,17 +207,17 @@ export class Photospheres extends React.Component<PhotospheresProps> {
       .data(root.descendants().slice(1))
       .join("circle")
       .attr("fill", (d: Node) =>
-        strokeOnly ? "white" : this.nodeColor(d).toString()
+        strokeOnly ? "white" : colorMapping(d, this.props).toString()
       )
       .attr("stroke", (d: Node) =>
-        strokeOnly ? this.nodeColor(d).toString() : null
+        strokeOnly ? colorMapping(d, this.props).toString() : null
       )
       .on("mouseover", function(d) {
         if (strokeOnly) {
           // darken outline on hover
           d3.select(this).attr("stroke", (d: Node) =>
             d3
-              .color(self.nodeColor(d).toString())
+              .color(colorMapping(d, self.props).toString())
               .darker()
               .toString()
           );
@@ -285,7 +229,7 @@ export class Photospheres extends React.Component<PhotospheresProps> {
       .on("mouseout", function() {
         if (strokeOnly) {
           d3.select(this).attr("stroke", (d: Node) =>
-            self.nodeColor(d).toString()
+            colorMapping(d, self.props).toString()
           );
         } else {
           d3.select(this).attr("stroke", null);
@@ -359,24 +303,6 @@ export class Photospheres extends React.Component<PhotospheresProps> {
 
   componentDidMount(): void {
     const { data } = this.props;
-
-    this.nodeColor = this.colorMapping(
-      "seq",
-      i =>
-        [
-          "#ffffd9",
-          "#edf8b1",
-          "#c7e9b4",
-          "#7fcdbb",
-          "#41b6c4",
-          "#1d91c0",
-          "#225ea8",
-          "#253494",
-          "#081d58",
-          "#b3b3b3"
-        ][i % 9]
-    );
-
     this.chart(data);
   }
 

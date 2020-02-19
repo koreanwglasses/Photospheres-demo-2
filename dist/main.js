@@ -6115,10 +6115,10 @@ const PropTypes = __webpack_require__(/*! prop-types */ "./node_modules/prop-typ
 const d3 = __webpack_require__(/*! d3 */ "d3");
 const cluster_1 = __webpack_require__(/*! ../types/cluster */ "./src/types/cluster.ts");
 const utils_1 = __webpack_require__(/*! ../utils */ "./src/utils.tsx");
+const photospheres_color_schemes_1 = __webpack_require__(/*! ../photospheres-color-schemes */ "./src/photospheres-color-schemes.ts");
 const PADDING = 3;
 const clamp = (x, min, max) => Math.min(Math.max(x, min), max);
 const luminance = (color) => d3.lab(color.toString()).l;
-const colorEq = (a, b) => d3.color(a.toString()).toString() == d3.color(b.toString()).toString();
 class Photospheres extends React.Component {
     constructor() {
         super(...arguments);
@@ -6126,53 +6126,6 @@ class Photospheres extends React.Component {
         this.preview = React.createRef();
         this.previewName = React.createRef();
         this.previewImg = React.createRef();
-        this.whichChildMemo = {};
-    }
-    whichChild(d) {
-        return this.whichChildMemo[d.data.name]
-            ? this.whichChildMemo[d.data.name]
-            : (this.whichChildMemo[d.data.name] = d.parent.children.indexOf(d));
-    }
-    colorMapping(type, color) {
-        const { strokeOnly } = this.props;
-        if ("sequential".startsWith(type)) {
-            // Sequential
-            return (d) => d.children ? color(d.depth) : strokeOnly ? "black" : "white";
-        }
-        else if ("qualitative".startsWith(type)) {
-            // Qualitative
-            const nodeColorMemo = {};
-            const nodeColor = (d) => {
-                if (!d.parent)
-                    return "white";
-                if (!(d.data.name in nodeColorMemo)) {
-                    let i = this.whichChild(d);
-                    for (let j = 0; j < 3; j++) {
-                        if (this.whichChild(d) > 0 &&
-                            colorEq(color(i), nodeColor(d.parent.children[this.whichChild(d) - 1])))
-                            i++; // dont repeat colors twice in a row
-                        if (colorEq(color(i), nodeColor(d.parent)))
-                            i++; // make sure color is not same as parent
-                    }
-                    nodeColorMemo[d.data.name] = color(i);
-                }
-                return nodeColorMemo[d.data.name];
-            };
-            return nodeColor;
-        }
-        else if ("adaptive".startsWith(type)) {
-            // All leaves are the same color
-            return (d) => {
-                const depthRatio = d.depth / (d.depth + d.height);
-                return color(depthRatio);
-            };
-        }
-        else if ("constant".startsWith(type)) {
-            return (d) => color(0);
-        }
-        else {
-            throw new Error("invalid color scheme type");
-        }
     }
     // create the circle packing layout
     pack(data) {
@@ -6241,14 +6194,18 @@ class Photospheres extends React.Component {
         });
     }
     textColor(d) {
-        return luminance(this.nodeColor(d)) > 70 ? "black" : "white";
+        return luminance(this.props.colorMapping(d, this.props)) > 70
+            ? "black"
+            : "white";
     }
     showPreview(d) {
         if (d.data.preview) {
             this.previewImg.current.setAttribute("src", d.data.preview);
             this.previewName.current.textContent = d.data.name;
             this.preview.current.removeAttribute("hidden");
-            this.preview.current.style.backgroundColor = this.nodeColor(d).toString();
+            this.preview.current.style.backgroundColor = this.props
+                .colorMapping(d, this.props)
+                .toString();
             this.preview.current.style.color = this.textColor(d);
         }
     }
@@ -6256,7 +6213,7 @@ class Photospheres extends React.Component {
         this.preview.current.setAttribute("hidden", "");
     }
     chart(data) {
-        const { width, height, strokeOnly } = this.props;
+        const { width, height, strokeOnly, colorMapping } = this.props;
         const root = this.pack(data);
         this.focus = root;
         this.svg = d3
@@ -6264,7 +6221,7 @@ class Photospheres extends React.Component {
             .attr("viewBox", `-${width / 2} -${height / 2} ${width} ${height}`)
             .attr("preserveAspectRatio", "xMidYMid meet")
             .style("display", "block")
-            .style("background", strokeOnly ? "white" : this.nodeColor(root).toString())
+            .style("background", strokeOnly ? "white" : colorMapping(root, this.props).toString())
             .style("cursor", "pointer")
             .on("click", () => this.zoom(root));
         // eslint-disable-next-line @typescript-eslint/no-this-alias
@@ -6274,13 +6231,13 @@ class Photospheres extends React.Component {
             .selectAll("circle")
             .data(root.descendants().slice(1))
             .join("circle")
-            .attr("fill", (d) => strokeOnly ? "white" : this.nodeColor(d).toString())
-            .attr("stroke", (d) => strokeOnly ? this.nodeColor(d).toString() : null)
+            .attr("fill", (d) => strokeOnly ? "white" : colorMapping(d, this.props).toString())
+            .attr("stroke", (d) => strokeOnly ? colorMapping(d, this.props).toString() : null)
             .on("mouseover", function (d) {
             if (strokeOnly) {
                 // darken outline on hover
                 d3.select(this).attr("stroke", (d) => d3
-                    .color(self.nodeColor(d).toString())
+                    .color(colorMapping(d, self.props).toString())
                     .darker()
                     .toString());
             }
@@ -6291,7 +6248,7 @@ class Photospheres extends React.Component {
         })
             .on("mouseout", function () {
             if (strokeOnly) {
-                d3.select(this).attr("stroke", (d) => self.nodeColor(d).toString());
+                d3.select(this).attr("stroke", (d) => colorMapping(d, self.props).toString());
             }
             else {
                 d3.select(this).attr("stroke", null);
@@ -6342,18 +6299,6 @@ class Photospheres extends React.Component {
     }
     componentDidMount() {
         const { data } = this.props;
-        this.nodeColor = this.colorMapping("seq", i => [
-            "#ffffd9",
-            "#edf8b1",
-            "#c7e9b4",
-            "#7fcdbb",
-            "#41b6c4",
-            "#1d91c0",
-            "#225ea8",
-            "#253494",
-            "#081d58",
-            "#b3b3b3"
-        ][i % 9]);
         this.chart(data);
     }
     render() {
@@ -6374,15 +6319,12 @@ Photospheres.propTypes = {
     width: PropTypes.number.isRequired,
     height: PropTypes.number.isRequired,
     minRadius: PropTypes.number,
-    strokeOnly: PropTypes.bool,
-    palette: PropTypes.oneOfType([PropTypes.array, PropTypes.string]),
-    colorMap: PropTypes.string
+    strokeOnly: PropTypes.bool
 };
 Photospheres.defaultProps = {
     minRadius: 10,
     strokeOnly: false,
-    palette: "ylgnbu",
-    colorMapping: "qualitative"
+    colorMapping: photospheres_color_schemes_1.createColorMapping(photospheres_color_schemes_1.palettes.ylgnbu, photospheres_color_schemes_1.colorMappings.sequential)
 };
 
 
@@ -6410,12 +6352,106 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const React = __webpack_require__(/*! react */ "react");
 const ReactDOM = __webpack_require__(/*! react-dom */ "react-dom");
 const photospheres_1 = __webpack_require__(/*! ./components/photospheres */ "./src/components/photospheres.tsx");
+const photospheres_color_schemes_1 = __webpack_require__(/*! ./photospheres-color-schemes */ "./src/photospheres-color-schemes.ts");
 const root = document.getElementById("react-root");
 (() => __awaiter(void 0, void 0, void 0, function* () {
     const response = yield fetch("example-data/cluster-data.json");
     const data = yield response.json();
-    ReactDOM.render(React.createElement(photospheres_1.Photospheres, { data: data, height: 720, width: 1280 }), root);
+    ReactDOM.render(React.createElement(photospheres_1.Photospheres, { data: data, height: 720, width: 1280, colorMapping: photospheres_color_schemes_1.createColorMapping(photospheres_color_schemes_1.palettes.ylgnbu, "seq") }), root);
 }))();
+
+
+/***/ }),
+
+/***/ "./src/photospheres-color-schemes.ts":
+/*!*******************************************!*\
+  !*** ./src/photospheres-color-schemes.ts ***!
+  \*******************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const d3 = __webpack_require__(/*! d3 */ "d3");
+const utils_1 = __webpack_require__(/*! ./utils */ "./src/utils.tsx");
+const colorEq = (a, b) => d3.color(a.toString()).toString() == d3.color(b.toString()).toString();
+exports.colorMappings = {
+    sequential: (palette) => (d, { strokeOnly }) => (d.children ? palette(d.depth) : strokeOnly ? "black" : "white"),
+    qualitative: (palette) => {
+        const whichChildMemo = {};
+        const whichChild = (d) => whichChildMemo[d.data.name]
+            ? whichChildMemo[d.data.name]
+            : (whichChildMemo[d.data.name] = d.parent.children.indexOf(d));
+        const nodeColorMemo = {};
+        const nodeColor = (d) => {
+            if (!d.parent)
+                return "white";
+            if (!(d.data.name in nodeColorMemo)) {
+                let i = whichChild(d);
+                for (let j = 0; j < 3; j++) {
+                    if (whichChild(d) > 0 &&
+                        colorEq(palette(i), nodeColor(d.parent.children[whichChild(d) - 1])))
+                        i++; // dont repeat colors twice in a row
+                    if (colorEq(palette(i), nodeColor(d.parent)))
+                        i++; // make sure color is not same as parent
+                }
+                nodeColorMemo[d.data.name] = palette(i);
+            }
+            return nodeColorMemo[d.data.name];
+        };
+        return nodeColor;
+    },
+    adaptive: (palette) => (d) => {
+        const depthRatio = d.depth / (d.depth + d.height);
+        return palette(depthRatio);
+    },
+    constant: (palette) => (d) => palette(0)
+};
+function createColorMapping(palette, type) {
+    const paletteF = Array.isArray(palette)
+        ? (i) => palette[i % palette.length]
+        : palette;
+    if (typeof type === "string") {
+        const colorMapping = utils_1.keyByPrefix(exports.colorMappings, type);
+        return colorMapping(paletteF);
+    }
+    else {
+        return type(paletteF);
+    }
+}
+exports.createColorMapping = createColorMapping;
+exports.palettes = {
+    // Bostock //
+    // 0: Blue-Green color scale
+    bugn: d3
+        .scaleLinear()
+        .domain([0, 5])
+        // @ts-ignore
+        .range(["hsl(152,80%,80%)", "hsl(228,30%,40%)"])
+        .interpolate(d3.interpolateHcl),
+    // Choi //
+    // 1: YlGnBu
+    ylgnbu: [
+        "#ffffd9",
+        "#edf8b1",
+        "#c7e9b4",
+        "#7fcdbb",
+        "#41b6c4",
+        "#1d91c0",
+        "#225ea8",
+        "#253494",
+        "#081d58",
+        "#b3b3b3"
+    ],
+    // 2: Greyscale
+    greyscale: d3
+        .scaleLinear()
+        .domain([0, 9])
+        // @ts-ignore
+        .range(["white", "black"])
+        .interpolate(d3.interpolateHcl)
+};
 
 
 /***/ }),
@@ -6472,6 +6508,17 @@ function validate(type, value, throwError = false) {
     return error;
 }
 exports.validate = validate;
+function keyByPrefix(obj, prefix) {
+    const matches = Object.keys(obj).filter(key => key.startsWith(prefix));
+    if (matches.length == 0) {
+        throw new Error(`no matches found for "${prefix}"`);
+    }
+    if (matches.length > 1) {
+        throw new Error(`multiple matches found for "${prefix}": ${matches.join(", ")}`);
+    }
+    return obj[matches[0]];
+}
+exports.keyByPrefix = keyByPrefix;
 
 
 /***/ }),

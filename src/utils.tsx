@@ -27,3 +27,19 @@ export function validate<A>(
 
   return error;
 }
+
+export function keyByPrefix<T>(obj: { [key: string]: T }, prefix: string): T {
+  const matches = Object.keys(obj).filter(key => key.startsWith(prefix));
+
+  if (matches.length == 0) {
+    throw new Error(`no matches found for "${prefix}"`);
+  }
+
+  if (matches.length > 1) {
+    throw new Error(
+      `multiple matches found for "${prefix}": ${matches.join(", ")}`
+    );
+  }
+
+  return obj[matches[0]];
+}
