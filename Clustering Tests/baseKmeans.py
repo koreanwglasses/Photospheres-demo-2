@@ -17,7 +17,7 @@ import json
 import clusternode as cn
 
 print("Loading images...")
-filenames = glob('../example-data/images/*.JPEG')
+filenames = glob('./example-data/images/*.JPEG')
 images = [cv2.imread(fname) for fname in filenames]
 
 def hierarchical_k_means(xs, names, k=7, split_threshold=10, max_depth=10):
@@ -138,7 +138,7 @@ print("Clustering (K-Means)...")
 cluster_id = 0 # give a unique id to each cluster
 kmeans = hierarchical_k_means(xs, np.array(filenames))
 
-f = open('../output/kmeans.json', 'w')
+f = open('./output/kmeans.json', 'w')
 f.write(kmeans.json())
 f.write('\n')
 f.close()

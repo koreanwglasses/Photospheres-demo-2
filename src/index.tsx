@@ -6,7 +6,7 @@ import { createColorMapping, palettes } from "./photospheres-color-schemes";
 const root = document.getElementById("react-root");
 
 (async (): Promise<void> => {
-  const response = await fetch("example-data/kmeans-tsne.json");
+  const response = await fetch("example-data/hamming-hashed.json");
   const data = await response.json();
   ReactDOM.render(
     <Photospheres
