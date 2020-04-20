@@ -35,7 +35,7 @@ def hierarchical_k_means(xs, names, k=7, split_threshold=10, max_depth=10):
   if xs.shape[0] < split_threshold or max_depth <= 0:
     cluster.children = [cn.ClusterNode(os.path.basename(name) , name , 1) for name in names]
     return cluster
-
+  # print(k_means(xs, k))
   centroids, labels, _ = k_means(xs, k)
 
   cluster.children = []

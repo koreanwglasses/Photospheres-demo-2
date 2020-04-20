@@ -6419,7 +6419,7 @@ const photospheres_1 = __webpack_require__(/*! ./components/photospheres */ "./s
 const photospheres_color_schemes_1 = __webpack_require__(/*! ./photospheres-color-schemes */ "./src/photospheres-color-schemes.ts");
 const root = document.getElementById("react-root");
 (() => __awaiter(void 0, void 0, void 0, function* () {
-    const response = yield fetch("example-data/hamming-hashed.json");
+    const response = yield fetch("example-data/agglo.json");
     const data = yield response.json();
     ReactDOM.render(React.createElement(photospheres_1.Photospheres, { data: data, height: 720, width: 1280, colorMapping: photospheres_color_schemes_1.createColorMapping(photospheres_color_schemes_1.palettes.ylgnbu, "seq") }), root);
 }))();

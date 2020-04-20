@@ -13,8 +13,6 @@ from PIL import Image
 # Load in a set of images
 # Hash them
 # Cluster based on different thresholds of "hash distance"
-#TODO: Switch to agglomerative clustering
-#https://scikit-learn.org/stable/modules/generated/sklearn.cluster.AgglomerativeClustering.html
 class ClusterNode:
     def __init__(self, name=None, preview=None, size=None, x=None, y=None, bounds=None, avg_img=None):
         self.name = name
@@ -66,7 +64,7 @@ class ClusterNode:
 cluster_id = 0
 
 
-def hierarchical_k_means(X, images, names, k=7, split_threshold=10, max_depth=10):
+def agglomerative(X, images, names, k=7, split_threshold=10, max_depth=10):
     '''
     Compute the hierarchical k means of a (transformed) data set.
     X - input data
@@ -83,22 +81,21 @@ def hierarchical_k_means(X, images, names, k=7, split_threshold=10, max_depth=10
     # output the centroids to a separate file
     # Requires the images array, and the global for the id.
     global cluster_id
-    centroid_outname = './example-data/centroids/kmeans-centroid-' + str(cluster_id) + '.JPEG'
+    centroid_outname = './example-data/centroids/agglomerative-mean' + str(cluster_id) + '.JPEG'
     cluster_id += 1
     cluster.name = f'cluster {cluster_id}'
     cluster.preview = centroid_outname
     cv2.imwrite(centroid_outname, np.mean(images, axis=0))
 
-    # Base Case
+    #Base Case
     if X.shape[0] < split_threshold or max_depth <= 0:
         cluster.children = [ClusterNode(os.path.basename(
             name), name, 1) for name in names]
         return cluster
 
     # Cluster and Recurse
-    kmeans = AgglomerativeClustering(n_clusters=k, affinity='precomputed', linkage='average')
-    print(kmeans.fit_predict(X))
-    labels = kmeans.labels_
+    agg = AgglomerativeClustering(n_clusters=k, affinity='precomputed', linkage='average').fit(X)
+    labels = agg.labels_
 
     cluster.children = []
     for i in range(k):
@@ -106,7 +103,7 @@ def hierarchical_k_means(X, images, names, k=7, split_threshold=10, max_depth=10
         cluster_images = images[labels == i]
         cluster_names = names[labels == i]
         # cluster_locations = locations[labels == i]
-        subcluster = hierarchical_k_means(cluster_X, cluster_images, cluster_names,
+        subcluster = agglomerative(cluster_X, cluster_images, cluster_names,
                                           k=k, split_threshold=split_threshold, max_depth=max_depth-1)
 
         cluster.children.append(subcluster)
@@ -202,7 +199,7 @@ rawimages = [Image.open(fname) for fname in filenames] #Load all raw images to b
 # X = np.stack(images).reshape(len(images), -1)
 
 #Hash all images, this will be the new X
-X_averagehashed = [imagehash.average_hash(x).hash for x in rawimages]
+X_averagehashed = [imagehash.phash(x).hash for x in rawimages]
 # print(X_averagehashed)
 X_avg = np.stack(X_averagehashed).reshape(len(images), -1)
 # # Reduce dimensionality
@@ -225,16 +222,16 @@ print(X_avg)
 print("Computing Agglomerative...")
 hammingDistMatrix = pdist(X_avg, metric='hamming') #NOTE Shape of x might be bad
 hammingDist = squareform(hammingDistMatrix)
-print(hammingDist)
-agg = AgglomerativeClustering(n_clusters=7, affinity='precomputed', linkage='average')
-r = agg.fit_predict(hammingDist)
-print(r)
-# agglo = hierarchical_k_means(hamming, np.stack(images), np.array(filenames))
+# print(hammingDist)
+# agg = AgglomerativeClustering(n_clusters=7, affinity='precomputed', linkage='average') #TODO Take this proof of concept and bring it into the main recursive funciton
+# r = agg.fit(hammingDist)
+# print(r)
+agglo = agglomerative(hammingDist, np.stack(images), np.array(filenames))
 
-# f = open('./example-data/agglo.json', 'w')
-# f.write(agglo.json())
-# f.write('\n')
-# f.close()
+f = open('./example-data/agglo.json', 'w')
+f.write(agglo.json())
+f.write('\n')
+f.close()
 
 # print("Computing Hamming Linkage...")
 # cluster_id = 0
