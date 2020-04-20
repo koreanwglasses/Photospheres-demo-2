@@ -4,9 +4,9 @@ import cv2
 from glob import glob
 import imagehash
 import clusternode as cn
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, AgglomerativeClustering
 from scipy.cluster.hierarchy import linkage
-from scipy.spatial.distance import pdist
+from scipy.spatial.distance import pdist, squareform
 import numpy as np
 import matplotlib as plt
 from PIL import Image
@@ -96,7 +96,8 @@ def hierarchical_k_means(X, images, names, k=7, split_threshold=10, max_depth=10
         return cluster
 
     # Cluster and Recurse
-    kmeans = KMeans(n_clusters=k).fit(X)
+    kmeans = AgglomerativeClustering(n_clusters=k, affinity='precomputed', linkage='average')
+    print(kmeans.fit_predict(X))
     labels = kmeans.labels_
 
     cluster.children = []
@@ -113,7 +114,6 @@ def hierarchical_k_means(X, images, names, k=7, split_threshold=10, max_depth=10
     return cluster
 
 #Takes the output of hierarchical clustering based on hamming distance and turns it into clusters and average images
-#!Figure out how to process the output into meangingful clusters
 def hammingClustering(hamming, images, names):
     #Intialization
     # print(hamming.shape)
@@ -205,7 +205,6 @@ rawimages = [Image.open(fname) for fname in filenames] #Load all raw images to b
 X_averagehashed = [imagehash.average_hash(x).hash for x in rawimages]
 # print(X_averagehashed)
 X_avg = np.stack(X_averagehashed).reshape(len(images), -1)
-
 # # Reduce dimensionality
 # print("Performing PCA...")
 # X_reduced = PCA(n_components=20).fit_transform(X)
@@ -222,26 +221,31 @@ X_avg = np.stack(X_averagehashed).reshape(len(images), -1)
 
 # plt.scatter(X_embedded[:, 0], X_embedded[:, 1], c=kmeans.labels_, cmap="Accent")
 # plt.show()
+print(X_avg)
+print("Computing Agglomerative...")
+hammingDistMatrix = pdist(X_avg, metric='hamming') #NOTE Shape of x might be bad
+hammingDist = squareform(hammingDistMatrix)
+print(hammingDist)
+agg = AgglomerativeClustering(n_clusters=7, affinity='precomputed', linkage='average')
+r = agg.fit_predict(hammingDist)
+print(r)
+# agglo = hierarchical_k_means(hamming, np.stack(images), np.array(filenames))
 
-# print("Computing K-means...")
-
-# hkmeans = hierarchical_k_means(X_avg, np.stack(images), np.array(filenames))
-
-# f = open('./example-data/kmeans-hashed.json', 'w')
-# f.write(hkmeans.json())
+# f = open('./example-data/agglo.json', 'w')
+# f.write(agglo.json())
 # f.write('\n')
 # f.close()
 
-print("Computing Hamming Linkage...")
-cluster_id = 0
-X_avg = pdist(X_avg, metric='hamming')
-hamming = linkage(X_avg, metric='hamming', method='complete')
-np.savetxt('hamming.txt', hamming)
-ham = hammingClustering(hamming, np.stack(images), np.array(filenames))
+# print("Computing Hamming Linkage...")
+# cluster_id = 0
+# X_avg = pdist(X_avg, metric='hamming')
+# hamming = linkage(X_avg, metric='hamming', method='complete')
+# np.savetxt('hamming.txt', hamming)
+# ham = hammingClustering(hamming, np.stack(images), np.array(filenames))
 
-f = open('./example-data/hamming-hashed.json', 'w')
-f.write(ham.json())
-f.write('\n')
-f.close()
+# f = open('./example-data/hamming-hashed.json', 'w')
+# f.write(ham.json())
+# f.write('\n')
+# f.close()
 
 print("Done!")
