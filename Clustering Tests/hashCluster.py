@@ -3,16 +3,13 @@ import os
 import cv2
 from glob import glob
 import imagehash
-import clusternode as cn
 from sklearn.cluster import KMeans, AgglomerativeClustering
 from scipy.cluster.hierarchy import linkage
 from scipy.spatial.distance import pdist, squareform
+from sklearn.metrics.pairwise import pairwise_distances
 import numpy as np
-import matplotlib as plt
 from PIL import Image
-# Load in a set of images
-# Hash them
-# Cluster based on different thresholds of "hash distance"
+
 class ClusterNode:
     def __init__(self, name=None, preview=None, size=None, x=None, y=None, bounds=None, avg_img=None):
         self.name = name
@@ -60,9 +57,7 @@ class ClusterNode:
 
         return result
 
-
 cluster_id = 0
-
 
 def agglomerative(X, images, names, k=7, split_threshold=10, max_depth=10):
     '''
@@ -188,45 +183,31 @@ def createClusters(z, hamming, images, completed, names):
     cluster.avg_img = cv2.imwrite(centroid_outname, np.mean([img1, img2], axis=0))
     return cluster
 
-
+def linalgNorm(x, y):
+    return np.linalg.norm(x-y)
 
 # Prepare input data
 print("Initializing images...")
 filenames = glob('./example-data/images/*.JPEG') #Grab all the image files
 images = [cv2.imread(fname) for fname in filenames] #Load all images
 rawimages = [Image.open(fname) for fname in filenames] #Load all raw images to be hashed NOTE this probably doesn't scale well
-# image_shape = images[0].shape
-# X = np.stack(images).reshape(len(images), -1)
 
-#Hash all images, this will be the new X
-X_averagehashed = [imagehash.phash(x).hash for x in rawimages]
+
+#Hash all images
+X_hashed = [imagehash.phash(x).hash for x in rawimages]
 # print(X_averagehashed)
-X_avg = np.stack(X_averagehashed).reshape(len(images), -1)
-# # Reduce dimensionality
-# print("Performing PCA...")
-# X_reduced = PCA(n_components=20).fit_transform(X)
+X_hashed = np.stack(X_hashed).reshape(len(images), -1)
 
-# print("Trying TSNE...")
-# X_embedded = TSNE(n_components=2).fit_transform(X_reduced)
-
-# plt.scatter(X_embedded[:, 0], X_embedded[:, 1])
-# plt.show()
-
-# print("Comparing K-means...")
-# k-means on unreduced input points
-# kmeans = KMeans(n_clusters=7).fit(X)
-
-# plt.scatter(X_embedded[:, 0], X_embedded[:, 1], c=kmeans.labels_, cmap="Accent")
-# plt.show()
-print(X_avg)
-print("Computing Agglomerative...")
-hammingDistMatrix = pdist(X_avg, metric='hamming') #NOTE Shape of x might be bad
+# print(X_hashed)
+print("Computing Agglomerative...") #Agglomerative clustering works fine, but image hashing ignores color, might need to try a new metric.
+hammingDistMatrix = pdist(X_hashed, metric='hamming')
 hammingDist = squareform(hammingDistMatrix)
 # print(hammingDist)
-# agg = AgglomerativeClustering(n_clusters=7, affinity='precomputed', linkage='average') #TODO Take this proof of concept and bring it into the main recursive funciton
-# r = agg.fit(hammingDist)
-# print(r)
-agglo = agglomerative(hammingDist, np.stack(images), np.array(filenames))
+Img = np.stack(images).reshape(len(images),-1)
+# print(linalgNorm(images[0], images[1]))
+normDist = pairwise_distances(Img, Img, metric=linalgNorm) #Maybe cache this, it takes forever to compute
+# print(normDist)
+agglo = agglomerative(normDist, np.stack(images), np.array(filenames), k=10, max_depth=20)
 
 f = open('./example-data/agglo.json', 'w')
 f.write(agglo.json())
